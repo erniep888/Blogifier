@@ -1,0 +1,33 @@
+﻿@inject HttpClient _http
+@inject IStringLocalizer<Resource> _localizer
+
+@if (_model != null)
+{
+	<div class="dashboard-widget d-flex">
+		<div class="dashboard-widget-card dashboard-stats-item">
+			<span class="dashboard-stats-number">@_model.TotalPosts</span>
+			<span class="dashboard-stats-title">@_localizer["posts"]</span>
+		</div>
+		<div class="dashboard-widget-card dashboard-stats-item">
+			<span class="dashboard-stats-number">0</span>
+			<span class="dashboard-stats-title">@_localizer["pages"]</span>
+		</div>
+		<div class="dashboard-widget-card dashboard-stats-item">
+			<span class="dashboard-stats-number">@_model.TotalViews</span>
+			<span class="dashboard-stats-title">@_localizer["views"]</span>
+		</div>
+		<div class="dashboard-widget-card dashboard-stats-item">
+			<span class="dashboard-stats-number">@_model.TotalSubscribers</span>
+			<span class="dashboard-stats-title">@_localizer["subscribers"]</span>
+		</div>
+	</div>
+}
+
+@code {
+	protected AnalyticsModel _model;
+
+	protected override async Task OnInitializedAsync()
+	{
+		_model = await _http.GetFromJsonAsync<AnalyticsModel>("api/analytics");
+	}
+}

@@ -1,72 +1,75 @@
-﻿using Blogifier.Core;
-using Blogifier.Core.Data;
-using Blogifier.Core.Helpers;
-using Blogifier.Core.Services;
+using Blogifier.Core.Providers;
+using Blogifier.Shared;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
-using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace Blogifier.Controllers
 {
-    public class NewsletterController : Controller
-    {
-        protected IDataService DataService;
-        protected ILogger Logger;
+	[Route("api/[controller]")]
+	[ApiController]
+	public class NewsletterController : ControllerBase
+	{
+		protected readonly INewsletterProvider _newsletterProvider;
 
-        public NewsletterController(IDataService dataService, ILogger<NewsletterController> logger)
-        {
-            DataService = dataService;
-            Logger = logger;
-        }
+		public NewsletterController(INewsletterProvider newsletterProvider)
+		{
+			_newsletterProvider = newsletterProvider;
+		}
 
-        [HttpPost]
-        public IActionResult Subscribe([FromBody]Newsletter letter)
-        {
-            if (letter != null && letter.Email.IsEmail())
-            {
-                try
-                {
-                    var existing = DataService.Newsletters.Single(n => n.Email == letter.Email);
-                    if (existing == null)
-                    {
-                        var newLetter = new Newsletter
-                        {
-                            Email = letter.Email,
-                            Ip = string.IsNullOrEmpty(letter.Ip) ? "n/a" : letter.Ip,
-                            Created = SystemClock.Now()
-                        };
-                        DataService.Newsletters.Add(newLetter);
-                        DataService.Complete();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return Ok(ex.Message);
-                }
-            }
-            return Ok();
-        }
+		[HttpPost("subscribe")]
+		public async Task<ActionResult<bool>> Subscribe([FromBody] Subscriber subscriber)
+		{
+			return await _newsletterProvider.AddSubscriber(subscriber);
+		}
 
-        [HttpPut]
-        public IActionResult Unsubscribe(string email)
-        {
-            if (!string.IsNullOrEmpty(email) && email.IsEmail())
-            {
-                try
-                {
-                    var existing = DataService.Newsletters.Single(n => n.Email == email);
-                    if (existing != null)
-                    {
-                        DataService.Newsletters.Remove(existing);
-                        DataService.Complete();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    return Ok(ex.Message);
-                }
-            }
-            return Ok();
-        }
-    }
+		[Authorize]
+		[HttpGet("subscribers")]
+		public async Task<List<Subscriber>> GetSubscribers()
+		{
+			return await _newsletterProvider.GetSubscribers();
+		}
+
+		[HttpDelete("unsubscribe/{id:int}")]
+		public async Task<ActionResult<bool>> RemoveSubscriber(int id)
+		{
+			return await _newsletterProvider.RemoveSubscriber(id);
+		}
+
+		[Authorize]
+		[HttpGet("newsletters")]
+		public async Task<List<Newsletter>> GetNewsletters()
+		{
+			return await _newsletterProvider.GetNewsletters();
+		}
+
+		[Authorize]
+		[HttpGet("send/{postId:int}")]
+		public async Task<bool> SendNewsletter(int postId)
+		{
+			return await _newsletterProvider.SendNewsletter(postId);
+		}
+
+		[Authorize]
+		[HttpDelete("remove/{id:int}")]
+		public async Task<ActionResult<bool>> RemoveNewsletter(int id)
+		{
+			return await _newsletterProvider.RemoveNewsletter(id);
+		}
+
+		[Authorize]
+		[HttpGet("mailsettings")]
+		public async Task<MailSetting> GetMailSettings()
+		{
+			return await _newsletterProvider.GetMailSettings();
+		}
+
+		[Authorize]
+		[HttpPut("mailsettings")]
+		public async Task<ActionResult<bool>> SaveMailSettings([FromBody] MailSetting mailSettings)
+		{
+			return await _newsletterProvider.SaveMailSettings(mailSettings);
+		}
+	}
 }

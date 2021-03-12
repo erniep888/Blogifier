@@ -1,0 +1,19 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JSRuntime
+@{
+	Task.Run(async ()=> await JSRuntime.InvokeAsync<string>("commonJsFunctions.hideLoader", "blazor-loading-ui"));
+}
+
+<AuthorizeView>
+	<Authorized>
+		<NavMenu />
+			<div class="container content">
+				@Body
+			</div>
+	</Authorized>
+	<NotAuthorized>
+		<RedirectToLogin />
+	</NotAuthorized>
+</AuthorizeView>
+
+<ToastContainer />
