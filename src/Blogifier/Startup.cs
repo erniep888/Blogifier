@@ -1,16 +1,11 @@
-using Blogifier.Core;
 using Blogifier.Core.Extensions;
-using Blogifier.Core.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.FeatureManagement;
 using Serilog;
-using Serilog.Events;
-using Sotsera.Blazor.Toaster.Core.Models;
 
 namespace Blogifier
 {
@@ -20,42 +15,39 @@ namespace Blogifier
         {
             Configuration = configuration;
             Log.Logger = new LoggerConfiguration()
-              .Enrich.FromLogContext()
-              .WriteTo.RollingFile("Logs/{Date}.txt", LogEventLevel.Warning)
-              .CreateLogger();
+                  .Enrich.FromLogContext()
+                  .WriteTo.File("Logs/log-.txt", rollingInterval: RollingInterval.Day)
+                  .CreateLogger();
+
+            Log.Warning("Application start");
         }
 
         public IConfiguration Configuration { get; }
 
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddBlogDatabase(Configuration);
-            services.AddBlogSecurity();
-            services.AddBlogLocalization();
+            Log.Warning("Start configure services");
 
-            services.AddLogging(loggingBuilder => loggingBuilder.AddSerilog(dispose: true));
-            services.AddFeatureManagement().AddFeatureFilter<EmailConfiguredFilter>();
+            services.AddLocalization(opts => { opts.ResourcesPath = "Resources"; });
 
-            services.AddRouting(options => options.LowercaseUrls = true);
-            services.AddControllersWithViews().AddViewLocalization(); 
-            
-            services.AddRazorPages(options => 
-                options.Conventions.AuthorizeFolder("/Admin")
-                .AllowAnonymousToPage("/Admin/_Host")
-            ).AddRazorRuntimeCompilation().AddViewLocalization();
-
-            services.AddServerSideBlazor();
-
-            services.AddHttpContextAccessor();
-
-            services.AddToaster(config =>
+            services.AddAuthentication(options =>
             {
-                config.PositionClass = Defaults.Classes.Position.BottomRight;
-                config.PreventDuplicates = true;
-                config.NewestOnTop = false;
-            });
+                options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            }).AddCookie();
 
-            services.AddBlogServices();
+            services.AddCors(o => o.AddPolicy("BlogifierPolicy", builder =>
+            {
+                builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+            }));
+
+            services.AddBlogDatabase(Configuration);
+
+            services.AddBlogProviders();
+
+            services.AddControllersWithViews();
+            services.AddRazorPages();
+
+            Log.Warning("Done configure services");
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -63,40 +55,32 @@ namespace Blogifier
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
+                app.UseWebAssemblyDebugging();
             }
             else
             {
                 app.UseExceptionHandler("/Error");
             }
 
-            AppSettings.WebRootPath = env.WebRootPath;
-            AppSettings.ContentRootPath = env.ContentRootPath;
-            AppSettings.ThumbWidth = 270;
-            AppSettings.ThumbHeight = 180;
-
-            app.UseForwardedHeaders(new ForwardedHeadersOptions
-            {
-                ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-            });
-
-            app.UseCookiePolicy();
-            app.UseAuthentication();
-            app.UseRequestLocalization();
+            app.UseBlazorFrameworkFiles();
             app.UseStaticFiles();
+            app.UseCookiePolicy();
 
             app.UseRouting();
-            app.UseCors("AllowOrigin");
+            app.UseCors("BlogifierPolicy");
+
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllerRoute(
-                    name: "default",
-                    pattern: "{controller=Blog}/{action=Index}/{id?}"
-                );
+                      name: "default",
+                      pattern: "{controller=Home}/{action=Index}/{id?}"
+                 );
                 endpoints.MapRazorPages();
-                endpoints.MapBlazorHub();
-                endpoints.MapFallbackToPage("/Admin/_Host");
+                endpoints.MapFallbackToFile("admin/{*path:nonfile}", "index.html");
+                endpoints.MapFallbackToFile("account/{*path:nonfile}", "index.html");
             });
         }
     }
